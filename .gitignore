@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# 원본 영상 / 모자이크 결과물
+target/
+result/
+
+# 영상 파일 (CCTV 원본·결과물은 개인정보 — 절대 커밋 금지)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.ts
+*.m4v
+*.h264
+*.dav
+
+# macOS
+.DS_Store
