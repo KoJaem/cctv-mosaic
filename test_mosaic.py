@@ -16,6 +16,23 @@ mosaic.TARGET = d
 answers = iter(["x", "9", "2"])
 builtins.input = lambda _: next(answers)
 assert mosaic.choose_video() == os.path.join(d, "b.mp4")
+answers = iter(["0", "2"])
+assert mosaic.choose_mode() == "keep"
+
+# confirm_runs: min_frames 미만 연속 구간은 버림 (= 가림)
+assert mosaic.confirm_runs([0, 0, None, 1, 1, 1, None, 2], 3) == [None, None, None, 1, 1, 1, None, None]
+assert mosaic.confirm_runs([None, None], 1) == [None, None]
+
+# intervals / iou
+assert mosaic.intervals([False, True, True, False, True], 1) == ["00:01~00:02", "00:04~00:04"]
+assert mosaic.iou((0, 0, 10, 10), (0, 0, 10, 10)) > 0.99
+assert mosaic.iou((0, 0, 10, 10), (20, 20, 10, 10)) == 0
+
+# load_keep_feats: 얼굴 없는 사진·사진 아닌 파일은 건너뜀
+mosaic.KEEP = tempfile.mkdtemp()
+cv2.imwrite(os.path.join(mosaic.KEEP, "noface.jpg"), np.zeros((100, 100, 3), np.uint8))
+open(os.path.join(mosaic.KEEP, "memo.txt"), "w").close()
+assert mosaic.load_keep_feats(0.6) == []
 
 # pixelate: 박스 안은 blocks*blocks 이하 색, 박스 밖은 그대로
 img = np.random.randint(0, 255, (100, 100, 3), np.uint8)
@@ -34,4 +51,22 @@ for _ in range(20):
 w.release()
 process(src, dst)
 assert int(cv2.VideoCapture(dst).get(cv2.CAP_PROP_FRAME_COUNT)) == 20
+
+# best_match: 가짜 얼굴 행으로 인식 API 호출 경로 확인 (크기 미달 얼굴은 비교 없이 가림)
+rec = mosaic.recognizer()
+frame = np.random.randint(0, 255, (200, 200, 3), np.uint8)
+row = np.array([50, 50, 80, 80, 70, 80, 110, 80, 90, 100, 75, 115, 105, 115, 0.9], np.float32)
+feat = rec.feature(rec.alignCrop(frame, row))
+assert mosaic.best_match(rec, frame, [row], [feat], 0.45, 40) == 0
+assert mosaic.best_match(rec, frame, [row], [feat], 0.45, 100) is None
+assert mosaic.best_match(rec, frame, [row], [-feat], 0.45, 40) is None
+
+# 특정 인물 제외 모드 + 확대 감지 경로도 끝까지 돌아가는지
+process(src, dst, scale=2.0, keep_feats=[np.zeros((1, 128), np.float32)])
+assert int(cv2.VideoCapture(dst).get(cv2.CAP_PROP_FRAME_COUNT)) == 20
+
+# 얼굴 추출: 얼굴 없는 영상이면 저장 0장
+mosaic.FACES = tempfile.mkdtemp()
+mosaic.extract_faces(src)
+assert os.listdir(os.path.join(mosaic.FACES, "in")) == []
 print("OK")
